@@ -141,7 +141,7 @@ protected slots:
 	void deleteHandler();
 	void submitHandler();
 	void commitHandler();
-	void appendHandler(const QString &text, bool shiftPressed);
+	void appendHandler(const QString &text, bool forceBlank);
 
 	void setGlobalCandidate(bool *carryOn); // returns false if the user canceled a badly formed move
 	void setAndCommitGlobalCandidate();
@@ -210,6 +210,7 @@ private:
 	QSize m_arrowRoot;
 	Quackle::Move m_candidate;
 	int m_arrowDirection;
+	bool m_nextLetterBlank;
 
 	void resetArrow();
 	bool hasArrow() const;

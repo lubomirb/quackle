@@ -10,6 +10,7 @@ set(DATA_ALPHABETS
 	${CMAKE_CURRENT_LIST_DIR}/pinyin.quackle_alphabet
 	${CMAKE_CURRENT_LIST_DIR}/polish.quackle_alphabet
 	${CMAKE_CURRENT_LIST_DIR}/russian.quackle_alphabet
+	${CMAKE_CURRENT_LIST_DIR}/slovak.quackle_alphabet
 	${CMAKE_CURRENT_LIST_DIR}/swedish.quackle_alphabet
 	${CMAKE_CURRENT_LIST_DIR}/turkish.quackle_alphabet
 	${CMAKE_CURRENT_LIST_DIR}/tuvan.quackle_alphabet

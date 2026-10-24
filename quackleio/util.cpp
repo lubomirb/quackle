@@ -129,7 +129,7 @@ QString Util::uvStringToQString(const UVString &uvString)
 
 Quackle::LetterString Util::encode(const QString &qstring)
 {
-	return QUACKLE_ALPHABET_PARAMETERS->encode(qstringToString(qstring));
+	return QUACKLE_ALPHABET_PARAMETERS->encode(qstringToString(qstring.normalized(QString::NormalizationForm_C)));
 }
 
 Quackle::LetterString Util::nonBlankEncode(const QString &qstring)

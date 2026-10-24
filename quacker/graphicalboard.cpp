@@ -73,7 +73,7 @@ void GraphicalBoard::resizeEvent(QResizeEvent * /* event */)
 ///////////////////
 
 GraphicalBoardFrame::GraphicalBoardFrame(QWidget *parent)
-	: View(parent), m_ignoreRack(false), m_alwaysShowVerboseLabels(false), m_boardSize(0, 0), m_sideLength(0)
+	: View(parent), m_ignoreRack(false), m_alwaysShowVerboseLabels(false), m_nextLetterBlank(false), m_boardSize(0, 0), m_sideLength(0)
 {
 	setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
 	setLineWidth(2);
@@ -115,6 +115,7 @@ void GraphicalBoardFrame::staticDrawPosition(const Quackle::GamePosition &positi
 
 void GraphicalBoardFrame::positionChanged(const Quackle::GamePosition *position)
 {
+	m_nextLetterBlank = false;
 	m_board = position->board();
 	m_rack = position->currentPlayer().rack();
 	m_ignoreRack = !position->currentPlayer().racksAreKnown();
@@ -584,23 +585,30 @@ void GraphicalBoardFrame::keyPressEvent(QKeyEvent *event)
 			break;
 
 		case Append:
-			if (event->text().isEmpty() || (event->text().at(0) >= QChar(0xa8) && event->text().at(0) <= QChar(0xb8))
-				|| // combining character
-				(event->text().at(0) >= QChar(0x2b9) && event->text().at(0) <= QChar(0x2ff))) // combining character
-				break; // let AltGr (Ctrl+Alt) and other composite keyboard events slip through
-			else if (event->modifiers() & Qt::AltModifier || event->modifiers() & Qt::ControlModifier)
+		{
+			const QString text = event->text().normalized(QString::NormalizationForm_C);
+			if (text.isEmpty() || text.at(0).category() == QChar::Mark_NonSpacing || text.at(0).category() == QChar::Mark_SpacingCombining
+				|| text.at(0).category() == QChar::Mark_Enclosing)
+				break; // let AltGr, dead keys, and other composite keyboard events slip through
+
+			if (text == "?")
 			{
-				if (!event->text().isEmpty()
-					&& ((event->text().at(0) >= 'a' && event->text().at(0) <= 'z')
-						|| (event->text().at(0) >= 'A' && event->text().at(0) <= 'Z')))
-				{
-					event->ignore();
-					return;
-				}
+				m_nextLetterBlank = true;
+				statusMessage(tr("Next letter will use a blank tile."));
+				break;
 			}
 
-			appendHandler(event->text(), event->modifiers() & Qt::ShiftModifier);
+			if (event->modifiers() & (Qt::AltModifier | Qt::ControlModifier))
+			{
+				event->ignore();
+				return;
+			}
+
+			const bool forceBlank = m_nextLetterBlank;
+			m_nextLetterBlank = false;
+			appendHandler(text, forceBlank);
 			break;
+		}
 
 		case Commit:
 		case Submit:
@@ -668,6 +676,7 @@ void GraphicalBoardFrame::prettifyAndSetLocalCandidate(const Quackle::Move &cand
 
 void GraphicalBoardFrame::setLocalCandidate(const Quackle::Move *candidate)
 {
+	m_nextLetterBlank = false;
 	m_candidate = *candidate;
 	resetArrow();
 	prepare();
@@ -675,6 +684,7 @@ void GraphicalBoardFrame::setLocalCandidate(const Quackle::Move *candidate)
 
 void GraphicalBoardFrame::backspaceHandler()
 {
+	m_nextLetterBlank = false;
 	unsigned int hoppedTiles = 0;
 	QSize currentTile(m_arrowRoot);
 	while (true)
@@ -795,7 +805,7 @@ void GraphicalBoardFrame::setAndCommitGlobalCandidate()
 		emit commit();
 }
 
-void GraphicalBoardFrame::appendHandler(const QString &text, bool shiftPressed)
+void GraphicalBoardFrame::appendHandler(const QString &text, bool forceBlank)
 {
 	if (!isOnBoard(m_arrowRoot))
 		return;
@@ -808,21 +818,15 @@ void GraphicalBoardFrame::appendHandler(const QString &text, bool shiftPressed)
 	if (appendedLetterString.length() == 0 || Quackle::String::front(appendedLetterString) < QUACKLE_FIRST_LETTER)
 		return;
 
-	if (shiftPressed)
-		appendedLetterString = Quackle::String::setBlankness(appendedLetterString);
-	else
-		appendedLetterString = Quackle::String::clearBlankness(appendedLetterString);
+	appendedLetterString = Quackle::String::clearBlankness(appendedLetterString);
 
 	Quackle::Move newCandidate(m_candidate);
 	Quackle::LetterString newTiles(m_candidate.tiles() + appendedLetterString);
-	if (!m_ignoreRack && !m_rack.contains(Quackle::String::usedTiles(newTiles)))
+	if (forceBlank || (!m_ignoreRack && !m_rack.contains(Quackle::String::usedTiles(newTiles))))
 	{
 		Quackle::LetterString blankedNewTiles(m_candidate.tiles() + Quackle::String::setBlankness(appendedLetterString));
-
-		if (m_rack.contains(Quackle::String::usedTiles(blankedNewTiles)))
-		{
+		if (forceBlank || m_ignoreRack || m_rack.contains(Quackle::String::usedTiles(blankedNewTiles)))
 			newTiles = blankedNewTiles;
-		}
 	}
 
 	newCandidate.setTiles(newTiles);
@@ -870,6 +874,7 @@ void GraphicalBoardFrame::appendHandler(const QString &text, bool shiftPressed)
 
 void GraphicalBoardFrame::tileClicked(const QSize &tileLocation, const QMouseEvent * /* event */)
 {
+	m_nextLetterBlank = false;
 	Quackle::Board::TileInformation info(m_board.tileInformation(tileLocation.height(), tileLocation.width()));
 	if (info.tileType == Quackle::Board::LetterTile)
 		return;
