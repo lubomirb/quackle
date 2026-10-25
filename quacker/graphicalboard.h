@@ -32,6 +32,7 @@
 
 class QFrame;
 class QGridLayout;
+class QInputMethodEvent;
 
 class GraphicalBoardFrame;
 class MarkWidget;
@@ -157,6 +158,7 @@ protected:
 	bool m_ignoreRack;
 
 	virtual void keyPressEvent(QKeyEvent *e);
+	virtual void inputMethodEvent(QInputMethodEvent *event);
 	virtual void paintEvent(QPaintEvent *event);
 	virtual void mousePressEvent(QMouseEvent *event);
 

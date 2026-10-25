@@ -80,6 +80,7 @@ GraphicalBoardFrame::GraphicalBoardFrame(QWidget *parent)
 
 	setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	setFocusPolicy(Qt::StrongFocus);
+	setAttribute(Qt::WA_InputMethodEnabled);
 
 	QColor color(PixmapCacher::self()->markColor);
 	QPalette customPalette;
@@ -589,7 +590,10 @@ void GraphicalBoardFrame::keyPressEvent(QKeyEvent *event)
 			const QString text = event->text().normalized(QString::NormalizationForm_C);
 			if (text.isEmpty() || text.at(0).category() == QChar::Mark_NonSpacing || text.at(0).category() == QChar::Mark_SpacingCombining
 				|| text.at(0).category() == QChar::Mark_Enclosing)
-				break; // let AltGr, dead keys, and other composite keyboard events slip through
+			{
+				event->ignore();
+				return;
+			}
 
 			if (text == "?")
 			{
@@ -619,6 +623,37 @@ void GraphicalBoardFrame::keyPressEvent(QKeyEvent *event)
 
 	prepare();
 
+	event->accept();
+}
+
+void GraphicalBoardFrame::inputMethodEvent(QInputMethodEvent *event)
+{
+	const QString text = event->commitString().normalized(QString::NormalizationForm_C);
+	if (text.isEmpty())
+	{
+		event->accept();
+		return;
+	}
+
+	if (!hasCandidate() || !hasArrow())
+	{
+		event->ignore();
+		return;
+	}
+
+	if (text == "?")
+	{
+		m_nextLetterBlank = true;
+		statusMessage(tr("Next letter will use a blank tile."));
+	}
+	else
+	{
+		const bool forceBlank = m_nextLetterBlank;
+		m_nextLetterBlank = false;
+		appendHandler(text, forceBlank);
+	}
+
+	prepare();
 	event->accept();
 }
 

@@ -1,4 +1,4 @@
-# Slovak Scrabble alphabet (updated tile distribution with Q and W)
+# Slovak Scrabble alphabet
 A	a	1	9	1
 Á	á	2	2	1
 Ä	ä	8	1	1
@@ -26,7 +26,6 @@ O	o	1	10	1
 Ó	ó	8	1	1
 Ô	ô	7	1	1
 P	p	2	3	0
-Q	q	10	1	0
 R	r	2	5	0
 Ŕ	ŕ	9	1	0
 S	s	1	5	0
@@ -36,7 +35,6 @@ T	t	1	4	0
 U	u	2	3	1
 Ú	ú	3	1	1
 V	v	1	5	0
-W	w	10	1	0
 X	x	9	1	0
 Y	y	2	2	1
 Ý	ý	3	1	1
