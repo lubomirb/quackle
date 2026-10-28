@@ -19,6 +19,8 @@
 #ifndef QUACKLE_GADDAG_H
 #define QUACKLE_GADDAG_H
 
+#include <cstdint>
+
 #include "alphabetparameters.h"
 
 #define QUACKLE_GADDAG_SEPARATOR QUACKLE_NULL_MARK
@@ -36,53 +38,29 @@ public:
 	const GaddagNode *child(Letter l) const;
 
 private:
-	unsigned char data[4];
+	unsigned char data[5];
 };
 
 inline Letter GaddagNode::letter() const
 {
-	return (data[3] & 0x3F /*0b00111111*/);
+	return (data[4] & 0x3F /*0b00111111*/);
 }
 
 inline bool GaddagNode::isTerminal() const
 {
-	return (data[3] & 0x40) != 0 /*0b01000000*/;
+	return (data[4] & 0x40) != 0 /*0b01000000*/;
 }
 
 inline const GaddagNode *GaddagNode::firstChild() const
 {
-	unsigned int p = (data[0] << 16) + (data[1] << 8) + (data[2]);
-	if (p == 0)
-	{
-		return 0;
-	}
-	else
-	{
-		return this + p;
-	}
+	const std::uint32_t p = (static_cast<std::uint32_t>(data[0]) << 24) |
+		(static_cast<std::uint32_t>(data[1]) << 16) | (static_cast<std::uint32_t>(data[2]) << 8) | data[3];
+	return p == 0 ? 0 : this + p;
 }
-
-/*
-inline const GaddagNode *
-GaddagNode::firstChild() const
-{
-	int p = (data[0] << 16) + (data[1] << 8) + (data[2]);
-	if (p == 0)
-	{
-		return 0;
-	}
-	else
-	{
-		if(p & 0x00800000)
-			p |= 0xff000000;
-		return this + p;
-	}
-}
-*/
 
 inline const GaddagNode *GaddagNode::nextSibling() const
 {
-	if (data[3] & 0x80 /*0b10000000*/)
+	if (data[4] & 0x80 /*0b10000000*/)
 	{
 		return 0;
 	}

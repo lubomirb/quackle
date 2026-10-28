@@ -118,36 +118,32 @@ void GaddagFactory::writeIndex(const string &fname)
 
 	ofstream out(fname.c_str(), ios::out | ios::binary);
 
-	out.put(1); // GADDAG format version 1
+	out.put(2); // GADDAG format version 2
 	out.write(m_hash.charptr, sizeof(m_hash.charptr));
 
 	for (unsigned int i = 0; i < m_nodelist.size(); i++)
 	{
-		unsigned int p = (unsigned int)(m_nodelist[i]->pointer);
+		unsigned int p = static_cast<unsigned int>(m_nodelist[i]->pointer);
 		if (p != 0)
 			p -= i; // offset indexing
 
-		char bytes[4];
-		unsigned char n1 = (p & 0x00FF0000) >> 16;
-		unsigned char n2 = (p & 0x0000FF00) >> 8;
-		unsigned char n3 = (p & 0x000000FF) >> 0;
-		unsigned char n4;
+		unsigned char bytes[5];
+		bytes[0] = (p & 0xFF000000) >> 24;
+		bytes[1] = (p & 0x00FF0000) >> 16;
+		bytes[2] = (p & 0x0000FF00) >> 8;
+		bytes[3] = p & 0x000000FF;
 
-		n4 = m_nodelist[i]->c;
-		if (n4 == internalSeparatorRepresentation)
-			n4 = QUACKLE_NULL_MARK;
+		bytes[4] = m_nodelist[i]->c;
+		if (bytes[4] == internalSeparatorRepresentation)
+			bytes[4] = QUACKLE_NULL_MARK;
 
 		if (m_nodelist[i]->t)
-			n4 |= 64;
+			bytes[4] |= 64;
 
 		if (m_nodelist[i]->lastchild)
-			n4 |= 128;
+			bytes[4] |= 128;
 
-		bytes[0] = n1;
-		bytes[1] = n2;
-		bytes[2] = n3;
-		bytes[3] = n4;
-		out.write(bytes, 4);
+		out.write(reinterpret_cast<char *>(bytes), sizeof(bytes));
 	}
 }
 

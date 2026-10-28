@@ -42,11 +42,34 @@ class Quackle::V0LexiconInterpreter : public LexiconInterpreter
 
 	virtual void loadGaddag(ifstream &file, LexiconParameters &lexparams)
 	{
-		int i = 0;
-		while (!file.eof())
+		file.seekg(0, ios_base::end);
+		const streamoff fileSize = file.tellg();
+		if (fileSize < 0 || fileSize % 4 != 0)
 		{
-			file.read((char *)(lexparams.m_gaddag) + i, 4);
-			i += 4;
+			UVcerr << "Invalid legacy GADDAG file size." << endl;
+			return;
+		}
+
+		const size_t nodeCount = static_cast<size_t>(fileSize / 4);
+		file.seekg(0, ios_base::beg);
+		delete[] lexparams.m_gaddag;
+		lexparams.m_gaddag = new unsigned char[nodeCount * 5];
+		for (size_t i = 0; i < nodeCount; ++i)
+		{
+			unsigned char legacy[4];
+			file.read(reinterpret_cast<char *>(legacy), sizeof(legacy));
+			if (!file)
+			{
+				lexparams.unloadGaddag();
+				UVcerr << "Truncated legacy GADDAG file." << endl;
+				return;
+			}
+			unsigned char *node = lexparams.m_gaddag + i * 5;
+			node[0] = 0;
+			node[1] = legacy[0];
+			node[2] = legacy[1];
+			node[3] = legacy[2];
+			node[4] = legacy[3];
 		}
 	}
 
@@ -109,11 +132,34 @@ class Quackle::V1LexiconInterpreter : public LexiconInterpreter
 			}
 		}
 
-		size_t i = 0;
-		while (!file.eof())
+		file.seekg(0, ios_base::end);
+		const streamoff fileSize = file.tellg();
+		if (fileSize < 17 || (fileSize - 17) % 4 != 0)
 		{
-			file.read((char *)(lexparams.m_gaddag) + i, 4);
-			i += 4;
+			UVcerr << "Invalid version-1 GADDAG file size." << endl;
+			return;
+		}
+
+		const size_t nodeCount = static_cast<size_t>((fileSize - 17) / 4);
+		file.seekg(17, ios_base::beg);
+		delete[] lexparams.m_gaddag;
+		lexparams.m_gaddag = new unsigned char[nodeCount * 5];
+		for (size_t i = 0; i < nodeCount; ++i)
+		{
+			unsigned char legacy[4];
+			file.read(reinterpret_cast<char *>(legacy), sizeof(legacy));
+			if (!file)
+			{
+				lexparams.unloadGaddag();
+				UVcerr << "Truncated version-1 GADDAG file." << endl;
+				return;
+			}
+			unsigned char *node = lexparams.m_gaddag + i * 5;
+			node[0] = 0;
+			node[1] = legacy[0];
+			node[2] = legacy[1];
+			node[3] = legacy[2];
+			node[4] = legacy[3];
 		}
 	}
 
@@ -132,6 +178,42 @@ class Quackle::V1LexiconInterpreter : public LexiconInterpreter
 		t = (playability != 0);
 	}
 	virtual int versionNumber() const { return 1; }
+};
+
+class Quackle::V2LexiconInterpreter : public V1LexiconInterpreter
+{
+	virtual void loadGaddag(ifstream &file, LexiconParameters &lexparams)
+	{
+		char hash[16];
+		file.get(); // skip past version byte
+		file.read(hash, sizeof(hash));
+		if (memcmp(hash, lexparams.m_hash, sizeof(hash)) && lexparams.m_hash[0] != 0)
+		{
+			lexparams.unloadGaddag();
+			return;
+		}
+
+		file.seekg(0, ios_base::end);
+		const streamoff fileSize = file.tellg();
+		if (fileSize < 17 || (fileSize - 17) % 5 != 0)
+		{
+			UVcerr << "Invalid version-2 GADDAG file size." << endl;
+			return;
+		}
+
+		const size_t dataSize = static_cast<size_t>(fileSize - 17);
+		file.seekg(17, ios_base::beg);
+		delete[] lexparams.m_gaddag;
+		lexparams.m_gaddag = new unsigned char[dataSize];
+		file.read(reinterpret_cast<char *>(lexparams.m_gaddag), static_cast<streamsize>(dataSize));
+		if (!file)
+		{
+			lexparams.unloadGaddag();
+			UVcerr << "Truncated version-2 GADDAG file." << endl;
+		}
+	}
+
+	virtual int versionNumber() const { return 2; }
 };
 
 LexiconParameters::LexiconParameters()
@@ -206,8 +288,6 @@ void LexiconParameters::loadGaddag(const string &filename)
 	char versionByte = file.get();
 	if (versionByte < m_interpreter->versionNumber())
 		return;
-	file.seekg(0, ios_base::end);
-	m_gaddag = new unsigned char[file.tellg()];
 	file.seekg(0, ios_base::beg);
 
 	// must create a local interpreter because dawg/gaddag versions might not match
@@ -285,6 +365,8 @@ LexiconInterpreter *LexiconParameters::createInterpreter(char version) const
 		return new V0LexiconInterpreter();
 	case 1:
 		return new V1LexiconInterpreter();
+	case 2:
+		return new V2LexiconInterpreter();
 	default:
 		return NULL;
 	}

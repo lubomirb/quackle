@@ -43,11 +43,13 @@ public:
 
 class V0LexiconInterpreter;
 class V1LexiconInterpreter;
+class V2LexiconInterpreter;
 
 class LexiconParameters
 {
 	friend class Quackle::V0LexiconInterpreter;
 	friend class Quackle::V1LexiconInterpreter;
+	friend class Quackle::V2LexiconInterpreter;
 
 public:
 	LexiconParameters();
