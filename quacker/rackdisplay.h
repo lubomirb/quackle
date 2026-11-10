@@ -40,6 +40,11 @@ public:
 public slots:
 	virtual void positionChanged(const Quackle::GamePosition *position);
 	virtual void grabFocus();
+	void returnTile(int letter);
+	void removeTile(int letter);
+
+signals:
+	void rackTileSelected(int letter);
 
 private slots:
 	void quickEditReturnPressed();
@@ -64,15 +69,18 @@ public:
 
 public slots:
 	virtual void setText(const Quackle::LetterString &text);
+	void returnTile(int letter);
+	void removeTile(int letter);
+
+signals:
+	void rackTileSelected(int letter);
 
 protected:
-	void dragEnterEvent(QDragEnterEvent *event);
-	void dropEvent(QDropEvent *event);
 	void mousePressEvent(QMouseEvent *event);
 
 private:
 	QHBoxLayout *m_layout;
-	static const QString mime_type;
+	QLabel *m_selectedLabel = nullptr;
 };
 
 #endif

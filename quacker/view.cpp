@@ -56,6 +56,8 @@ void View::connectSubviewSignals()
 		connect(it, SIGNAL(setCandidateMove(const Quackle::Move *, bool *)), this, SIGNAL(setCandidateMove(const Quackle::Move *, bool *)));
 		connect(it, SIGNAL(removeCandidateMoves(const Quackle::MoveList *)), this, SIGNAL(removeCandidateMoves(const Quackle::MoveList *)));
 		connect(it, SIGNAL(commit()), this, SIGNAL(commit()));
+		connect(it, SIGNAL(returnRackTile(int)), this, SIGNAL(returnRackTile(int)));
+		connect(it, SIGNAL(rackTilePlaced(int)), this, SIGNAL(rackTilePlaced(int)));
 		connect(it, SIGNAL(setRack(const Quackle::Rack &)), this, SIGNAL(setRack(const Quackle::Rack &)));
 	}
 }

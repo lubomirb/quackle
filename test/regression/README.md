@@ -87,10 +87,10 @@ on whether a gaddag is present — but it's used internally to build gaddags (be
 
 ## Gaddags
 
-The data dir ships each lexicon's `.dawg` but not its `.gaddag` (a generated
-file the repo doesn't carry). Move generation produces **identical** results
-either way, so goldens don't depend on the gaddag — but with one, Speedy Player
-runs at full strength and noticeably faster.
+Most lexicons ship only their `.dawg`; the Slovak lexicon also ships a generated
+`.gaddag`. Move generation produces **identical** results either way, so goldens
+don't depend on the gaddag — but with one, Speedy Player runs at full strength and
+noticeably faster.
 
 When a lexicon has no gaddag in the data dir, the driver builds one from the dawg
 (`libquackle_test --mode=worddump` → `makegaddag`, both from the target build

@@ -62,6 +62,8 @@ signals:
 	void setCandidateMove(const Quackle::Move *move, bool *carryOnPtr = nullptr);
 	void removeCandidateMoves(const Quackle::MoveList *moves);
 	void commit();
+	void returnRackTile(int letter);
+	void rackTilePlaced(int letter);
 
 	// emit to alert the rest of the application to reset the current
 	// player's rack - may eventually trigger positionChanged

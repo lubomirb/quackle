@@ -56,6 +56,12 @@ BRB::BRB(WidgetFactory *widgetFactory, QWidget *parent)
 	m_subviews.push_back(m_rackDisplay);
 	m_subviews.push_back(m_bagDisplay);
 	connectSubviewSignals();
+	if (qobject_cast<QuickEntryRack *>(m_rackDisplay))
+	{
+		connect(m_rackDisplay, SIGNAL(rackTileSelected(int)), m_boardDisplay, SLOT(selectRackTile(int)));
+		connect(m_boardDisplay, SIGNAL(returnRackTile(int)), m_rackDisplay, SLOT(returnTile(int)));
+		connect(m_boardDisplay, SIGNAL(rackTilePlaced(int)), m_rackDisplay, SLOT(removeTile(int)));
+	}
 }
 
 BRB::~BRB() {}

@@ -11,6 +11,9 @@ do so, but that configuration is no longer supported.
 A note about using cmake under Windows...cmake is finicky about backslashes.  Specify
 all pathnames (e.g., in the CMAKE_PREFIX_PATH) with forward slashes (/).
 
+For Qt 6.12 installed at C:/Qt/6.12.0/msvc2022_64, the quacker CMake project
+automatically detects Qt. For another installation, set QUACKLE_QT_ROOT or
+CMAKE_PREFIX_PATH to the Qt installation prefix in Visual Studio's CMake settings.
 
 Additional things to know:
 --------------------------
@@ -21,3 +24,30 @@ Additional things to know:
   + From the Quackle directory, run the following...
     <full path to Inno Setup's ISCC.exe> installer.iss /FQuackleInstaller /O. /Q
   + Find the file QuackleInstaller.exe in the quackle\ directory.
+
+To create a ZIP of the built Windows application, run PowerShell from the repository root:
+
+    .\scripts\package-windows.ps1
+
+By default, the script packages `out\build\quackle-vs-qt-discovery` into
+`out\Quackle-Windows-x64.zip`. It includes the executable, deployed Qt DLLs and
+plugins, license, and runtime data; it does not include source archives. To use a
+different build directory or output file:
+
+    .\scripts\package-windows.ps1 -BuildDirectory out\build\x64-release -OutputPath out\Quackle.zip
+
+Build and deploy the application first so `Quackle.exe`, its DLLs, and Qt platform
+plugins are present in the selected build directory.
+
+To publish an existing ZIP as a GitHub Release, authenticate with Git Credential
+Manager, commit the source changes, build that commit, and create the ZIP. Then run:
+
+    .\scripts\publish-windows-release.ps1 -Tag v1.2.0 -Notes "Windows release"
+
+Use a new tag. The script tags the current commit, pushes it to `origin`, creates a
+release draft, uploads the ZIP, and publishes the release. Use `-WhatIf` to preview
+or `-Prerelease` to mark a prerelease. `-ZipPath`, `-Title`, and `-Notes` are optional.
+The script does not build the application or verify that the ZIP matches the commit;
+untracked files are not included in the tag. If publishing fails after pushing the tag,
+check the tag and release draft on GitHub before retrying. GitHub automatically shows
+source-code archives for releases; these cannot be removed by this script.

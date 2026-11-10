@@ -105,6 +105,9 @@ public:
 
 	GraphicalBoardFrame *boardFrame() { return m_boardFrame; }
 
+public slots:
+	void selectRackTile(int letter);
+
 protected slots:
 	virtual void expandToFullWidth();
 	virtual void resizeEvent(QResizeEvent *event);
@@ -122,6 +125,8 @@ public:
 	GraphicalBoardFrame(QWidget *parent = 0);
 	~GraphicalBoardFrame();
 
+	bool returnCandidateTile(int row, int column);
+
 	static const double s_markOtherLengthMultiplier;
 	static const int s_highlightFactor = 125;
 
@@ -136,6 +141,7 @@ public:
 public slots:
 	virtual void positionChanged(const Quackle::GamePosition *position);
 	virtual void expandToSize(const QSize &maxSize);
+	void selectRackTile(int letter);
 
 protected slots:
 	void backspaceHandler();
@@ -161,6 +167,7 @@ protected:
 	virtual void inputMethodEvent(QInputMethodEvent *event);
 	virtual void paintEvent(QPaintEvent *event);
 	virtual void mousePressEvent(QMouseEvent *event);
+	virtual void mouseReleaseEvent(QMouseEvent *event);
 
 	virtual bool wantMousePressEvent(const QMouseEvent *event) const;
 
@@ -200,6 +207,7 @@ protected:
 signals:
 	void localCandidateChanged(const Quackle::Move *candidate);
 	void tileFontChanged(const QFont &font);
+	void rackTilePlaced(int letter);
 
 private:
 	QMap<QSize, TileWidget *> m_tileWidgets;
@@ -219,16 +227,20 @@ private:
 	QSize arrowVector() const;
 	bool hasCandidate() const;
 	void ensureCandidatePlacedProperly();
+	int candidateTileIndexAt(const QSize &location) const;
 
 	bool isOnBoard(const QSize &location) const;
 
 	QSize m_maxSize;
+	Quackle::Letter m_selectedRackTile;
 
 	// side length of one tile
 	int m_sideLength;
 
 	// shorter side length of a mark
 	QPoint m_tilesOffset;
+	QPoint m_pressedPosition;
+	QSize m_pressedCandidateTile;
 };
 
 class TileWidget

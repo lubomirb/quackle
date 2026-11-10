@@ -35,3 +35,5 @@ playabilities.raw
 smaller.raw
 DerivedData
 quacker/CMakeLists.txt.user
+out/
+*.obj

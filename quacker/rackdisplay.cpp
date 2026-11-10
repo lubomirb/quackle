@@ -57,6 +57,7 @@ QuickEntryRack::QuickEntryRack(QWidget *parent)
 	layout->addWidget(m_tiles);
 	layout->addLayout(textLayout);
 	setLayout(layout);
+	connect(m_tiles, SIGNAL(rackTileSelected(int)), this, SIGNAL(rackTileSelected(int)));
 }
 
 QuickEntryRack::~QuickEntryRack() {}
@@ -76,6 +77,16 @@ void QuickEntryRack::grabFocus()
 {
 	m_lineEdit->setFocus();
 	m_lineEdit->selectAll();
+}
+
+void QuickEntryRack::returnTile(int letter)
+{
+	m_tiles->returnTile(letter);
+}
+
+void QuickEntryRack::removeTile(int letter)
+{
+	m_tiles->removeTile(letter);
 }
 
 void QuickEntryRack::quickEditReturnPressed()
@@ -111,13 +122,13 @@ GraphicalRack::GraphicalRack(QWidget *parent)
 	Geometry::setupInnerLayout(m_layout);
 	m_layout->addStretch();
 
-	setAcceptDrops(true);
 	setMinimumSize(50, 50);
 }
 
 void GraphicalRack::setText(const Quackle::LetterString &text)
 {
 	// clear old labels
+	m_selectedLabel = nullptr;
 	while (m_layout->count())
 	{
 		QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(0)->widget());
@@ -146,150 +157,69 @@ void GraphicalRack::setText(const Quackle::LetterString &text)
 		tile.prepare();
 
 		label->setPixmap(tile.tilePixmap());
+		label->setProperty("quackleLetter", static_cast<int>(text[i]));
 
 		m_layout->insertWidget(0, label);
 	}
 }
 
-const QString GraphicalRack::mime_type = "application/x-quackle-tile";
-
-void GraphicalRack::dragEnterEvent(QDragEnterEvent *event)
+void GraphicalRack::returnTile(int letterValue)
 {
-	if (event->mimeData()->hasFormat(mime_type))
+	const Quackle::Letter letter = static_cast<Quackle::Letter>(letterValue);
+	Quackle::Board::TileInformation info;
+	info.isOnRack = true;
+	info.tileType = Quackle::Board::LetterTile;
+	info.letter = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(letter) ? QUACKLE_BLANK_MARK : letter;
+
+	TileWidget tile;
+	tile.setDevicePixelRatio(devicePixelRatio());
+	tile.setInformation(info);
+	tile.setSideLength(50);
+	tile.prepare();
+
+	QLabel *label = new QLabel;
+	label->setPixmap(tile.tilePixmap());
+	label->setProperty("quackleLetter", letterValue);
+	label->setAttribute(Qt::WA_DeleteOnClose);
+	m_layout->insertWidget(m_layout->count() - 1, label);
+}
+
+void GraphicalRack::removeTile(int letterValue)
+{
+	for (int index = 0; index < m_layout->count(); ++index)
 	{
-		if (event->source() == this)
+		QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(index)->widget());
+		if (label && label->property("quackleLetter").toInt() == letterValue)
 		{
-			event->setDropAction(Qt::MoveAction);
-			event->accept();
+			if (m_selectedLabel == label)
+				m_selectedLabel = nullptr;
+			m_layout->removeWidget(label);
+			label->close();
+			return;
 		}
-		else
-		{
-			event->acceptProposedAction();
-		}
-	}
-	else
-	{
-		event->ignore();
 	}
 }
 
-//---------------------------------------------------------------------------
-//  dropEvent
-//
-//! The event handler that receives drop events.
-//
-//! @param event the drop event
-//---------------------------------------------------------------------------
-void GraphicalRack::dropEvent(QDropEvent *event)
-{
-	if (event->mimeData()->hasFormat(mime_type))
-	{
-		QByteArray itemData = event->mimeData()->data(mime_type);
-		QDataStream dataStream(&itemData, QIODevice::ReadOnly);
-
-		QPixmap pixmap;
-		QPoint sourcePos;
-		QPoint offset;
-		dataStream >> pixmap >> sourcePos >> offset;
-		pixmap.setDevicePixelRatio(devicePixelRatio());
-
-		QLabel *droppedTile = new QLabel;
-		droppedTile->setPixmap(pixmap);
-		droppedTile->setAttribute(Qt::WA_DeleteOnClose);
-
-#if (QT_VERSION >= QT_VERSION_CHECK(6, 0, 0))
-		QPoint dropPos = event->position().toPoint() - offset;
-#else
-		QPoint dropPos = event->pos() - offset;
-#endif
-
-		// Move the tile an extra half tile width in the direction of the
-		// move.  This allows the tile to assume a new spot if it is dragged
-		// more than halfway onto the spot.
-		int extraMove = (sourcePos.x() < dropPos.x() ? 50 / 2 : -50 / 2);
-
-		dropPos.setX(dropPos.x() + extraMove);
-
-		for (int i = 0; i < m_layout->count(); ++i)
-		{
-			QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(i)->widget());
-			if (!label)
-			{ // hit the stretcher
-				m_layout->insertWidget(i, droppedTile);
-				break;
-			}
-			if (dropPos.x() > label->pos().x())
-			{
-				continue;
-			}
-			m_layout->insertWidget(i, droppedTile);
-			break;
-		}
-
-		if (event->source() == this)
-		{
-			event->setDropAction(Qt::MoveAction);
-			event->accept();
-		}
-		else
-		{
-			event->acceptProposedAction();
-		}
-	}
-	else
-	{
-		event->ignore();
-	}
-}
-
-//---------------------------------------------------------------------------
-//  mousePressEvent
-//
-//! The event handler that receives mouse press events.
-//
-//! @param event the mouse press event
-//---------------------------------------------------------------------------
 void GraphicalRack::mousePressEvent(QMouseEvent *event)
 {
-	QLabel *child = qobject_cast<QLabel *>(childAt(event->pos()));
-	if (!child)
+	if (event->button() != Qt::LeftButton)
+	{
+		event->ignore();
 		return;
-
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
-	QPixmap pixmap = child->pixmap(Qt::ReturnByValue);
-#else
-	QPixmap pixmap = *(child->pixmap());
-#endif
-
-	QByteArray itemData;
-	QDataStream dataStream(&itemData, QIODevice::WriteOnly);
-	dataStream << pixmap << QPoint(event->pos()) << QPoint(event->pos() - child->pos());
-
-	QMimeData *mimeData = new QMimeData;
-	mimeData->setData(mime_type, itemData);
-
-	QDrag *drag = new QDrag(this);
-	drag->setMimeData(mimeData);
-	drag->setPixmap(pixmap);
-	drag->setHotSpot(event->pos() - child->pos());
-
-	QColor bgColor = palette().color(QPalette::Window);
-
-	QPixmap tempPixmap = pixmap;
-	QPainter painter;
-	painter.begin(&tempPixmap);
-	painter.fillRect(pixmap.rect(), QColor(bgColor.red(), bgColor.green(), bgColor.blue(), 127));
-	painter.end();
-
-	child->setPixmap(tempPixmap);
-
-	if (drag->exec(Qt::CopyAction | Qt::MoveAction) == Qt::MoveAction)
-	{
-		child->close();
 	}
-	else
+
+	QLabel *label = qobject_cast<QLabel *>(childAt(event->pos()));
+	if (!label)
 	{
-		child->show();
-		child->setPixmap(pixmap);
+		event->ignore();
+		return;
 	}
+
+	if (m_selectedLabel)
+		m_selectedLabel->setFrameStyle(QFrame::NoFrame);
+	m_selectedLabel = label;
+	m_selectedLabel->setFrameStyle(QFrame::Box | QFrame::Plain);
+	m_selectedLabel->setLineWidth(2);
+	emit rackTileSelected(label->property("quackleLetter").toInt());
+	event->accept();
 }

@@ -124,9 +124,12 @@ void BoardWithQuickEntry::provideHelp()
 {
 	QMessageBox::information(this, tr("Entering Moves - Quackle"),
 		QString("<html>")
-			+ tr(
-				"To enter a move, click on the board once or twice and start typing. Hold down the Shift key for blanks. To exchange, type "
-				"something like \"exchange QWUV\" or \"pass\" into the move editor, then press the Enter key or click \"Enter move\".")
+			+ tr("Click a board square once or twice to choose the starting square and direction. Click a rack tile to select it, then "
+				 "click "
+				 "the highlighted square to place it. Click an uncommitted board tile to return it to the rack. You can also type a move. "
+				 "Hold "
+				 "down the Shift key for blanks. To exchange, type something like \"exchange QWUV\" or \"pass\" into the move editor, then "
+				 "press the Enter key or click \"Enter move\".")
 			+ "</html>");
 }
 
