@@ -31,8 +31,8 @@ To create a ZIP of the built Windows application, run PowerShell from the reposi
 
 By default, the script packages `out\build\quackle-vs-qt-discovery` into
 `out\Quackle-Windows-x64.zip`. It includes the executable, deployed Qt DLLs and
-plugins, license, and runtime data; it does not include source archives. To use a
-different build directory or output file:
+plugins, license, `README.Quackle.txt`, and runtime data; it does not include source
+archives. To use a different build directory or output file:
 
     .\scripts\package-windows.ps1 -BuildDirectory out\build\x64-release -OutputPath out\Quackle.zip
 

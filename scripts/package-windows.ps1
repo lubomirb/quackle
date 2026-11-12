@@ -36,6 +36,11 @@ foreach ($relativePath in $requiredDirectories) {
 	}
 }
 
+$readmePath = Join-Path $repoRoot "README.Quackle"
+if (-not (Test-Path -LiteralPath $readmePath -PathType Leaf)) {
+	throw "Required Quackle readme was not found: $readmePath"
+}
+
 $outputDirectory = Split-Path -Parent $OutputPath
 if (-not (Test-Path -LiteralPath $outputDirectory -PathType Container)) {
 	New-Item -ItemType Directory -Path $outputDirectory -Force | Out-Null
@@ -51,6 +56,7 @@ try {
 		Copy-Item -LiteralPath $dll.FullName -Destination $packageRoot
 	}
 	Copy-Item -LiteralPath (Join-Path $repoRoot "LICENSE") -Destination $packageRoot
+	Copy-Item -LiteralPath $readmePath -Destination (Join-Path $packageRoot "README.Quackle.txt")
 
 	foreach ($directoryName in @("platforms", "imageformats", "styles")) {
 		$sourceDirectory = Join-Path $BuildDirectory $directoryName

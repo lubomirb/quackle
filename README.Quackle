@@ -1,0 +1,13 @@
+Slovenská verzia Quackle je k dispozícii na adrese:
+
+Vznikla z open source verzie https://github.com/quackle/quackle lokalizovaním do slovenčiny , 
+	doplnením slovenskej abecedy, slovníka a slovenskej hracej dosky so 100 kameňmi
+
+
+Všetky ostatné vlastnosti Quackle sú zachované, vrátane možnosti hrať proti počítaču a analyzovať hry .
+Pribudla možnost presúvat kamene zo zásobníka na hraciu dosku a späť myšou:
+	klikom, dvjklikom ma políčko hracej dosky označíme začiatok a smer pre vkladané slovo
+	kliknutím označíme kameň v zásobníku a kliknutím na hraciu dosku sa presunie na hraciu dosku, 
+	kliknutím na kameň ešte nekomitnutého slova na hracej doske sa kameň presunie späť do zásobníka.
+
+Joker sa zadáva z klávesnice kombinácioiu dvoch ? a malé pismeno (napr. "?a" pre "A") .

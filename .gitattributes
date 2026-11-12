@@ -58,3 +58,4 @@
 #*.rtf   diff=astextplain
 #*.RTF   diff=astextplain
 data/lexica/slovak.gaddag filter=lfs diff=lfs merge=lfs -text
+data/rax_lexica/ export-ignore 
