@@ -148,5 +148,11 @@ public:
 	EnglishBoard();
 };
 
+class SlovakBoard : public BoardParameters
+{
+public:
+	SlovakBoard();
+};
+
 }
 #endif

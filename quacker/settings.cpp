@@ -454,7 +454,9 @@ void Settings::setQuackleToUseBoardName(const QString &boardName)
 	CustomQSettings settings;
 	settings.beginGroup("quackle/boardparameters");
 
-	if (boardName.isEmpty() || !settings.contains(boardName))
+	if (boardName == "slovak")
+		QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::SlovakBoard());
+	else if (boardName.isEmpty() || !settings.contains(boardName))
 		QUACKLE_DATAMANAGER->setBoardParameters(new Quackle::BoardParameters());
 	else
 	{
@@ -580,6 +582,8 @@ void Settings::addBoard()
 void Settings::editBoard()
 {
 	QString oldBoardName = m_boardNameCombo->currentText();
+	if (oldBoardName == "slovak")
+		return;
 	QUACKLE_BOARD_PARAMETERS->setName(QuackleIO::Util::qstringToString(oldBoardName));
 
 	BoardSetupDialog dialog(this);
@@ -612,18 +616,20 @@ void Settings::loadBoardNameCombo()
 	CustomQSettings settings;
 	settings.beginGroup("quackle/boardparameters");
 	QStringList boardNames = settings.childKeys();
+	boardNames.removeAll("slovak");
+	boardNames.append("slovak");
 	boardNames.sort();
 	m_boardNameCombo->addItems(boardNames);
 	m_boardNameCombo->addItem("Add new board...");
 	settings.endGroup();
-
-	m_editBoard->setEnabled(!boardNames.empty());
 
 	QString currentItem = settings.value("quackle/settings/board-name", QString("")).toString();
 	int currentItemIndex = m_boardNameCombo->findText(currentItem);
 	if (m_boardNameCombo->count() > 0 && currentItemIndex < 0)
 		currentItemIndex = 0;
 	m_boardNameCombo->setCurrentIndex(currentItemIndex);
+	const QString selectedBoard = m_boardNameCombo->currentText();
+	m_editBoard->setEnabled(!selectedBoard.isEmpty() && selectedBoard != "slovak" && selectedBoard != "Add new board...");
 }
 
 void Settings::editLexicon()
