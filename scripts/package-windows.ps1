@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-	[string]$BuildDirectory = "out\build\quackle-vs-qt-discovery",
+	[string]$BuildDirectory = "out\build\quacker-release",
 	[string]$OutputPath = "out\Quackle-Windows-x64.zip"
 )
 
