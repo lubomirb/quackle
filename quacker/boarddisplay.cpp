@@ -110,8 +110,10 @@ void BoardWithQuickEntry::plusFive()
 
 void BoardWithQuickEntry::performCommit()
 {
-	emit setCandidateMove(&m_localCandidateMove, nullptr);
-	emit commit();
+	bool carryOn = false;
+	emit setCandidateMove(&m_localCandidateMove, &carryOn);
+	if (carryOn)
+		emit commit();
 }
 
 void BoardWithQuickEntry::reset()
@@ -124,12 +126,10 @@ void BoardWithQuickEntry::provideHelp()
 {
 	QMessageBox::information(this, tr("Entering Moves - Quackle"),
 		QString("<html>")
-			+ tr("Click a board square once or twice to choose the starting square and direction. Click a rack tile to select it, then "
-				 "click "
-				 "the highlighted square to place it. Click an uncommitted board tile to return it to the rack. You can also type a move. "
-				 "Hold "
-				 "down the Shift key for blanks. To exchange, type something like \"exchange QWUV\" or \"pass\" into the move editor, then "
-				 "press the Enter key or click \"Enter move\".")
+			+ tr("Drag rack tiles onto the board in one row or column. Click an uncommitted tile to return it to its original rack "
+				 "position. "
+				 "Click a blank tile and enter a lowercase letter before dragging it. You can also type a move in the move editor. "
+				 "To exchange, type something like \"exchange QWUV\" or \"pass\" into the move editor, then press Enter.")
 			+ "</html>");
 }
 

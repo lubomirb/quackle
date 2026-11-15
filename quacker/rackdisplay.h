@@ -22,10 +22,13 @@
 #include "view.h"
 #include "alphabetparameters.h"
 
+#include <QPointer>
+
 class QFont;
 class QLabel;
 class QLineEdit;
 class QHBoxLayout;
+class GraphicalBoardFrame;
 class GraphicalRack;
 class RackTileWidget;
 
@@ -36,15 +39,14 @@ class QuickEntryRack : public View
 public:
 	QuickEntryRack(QWidget *parent = 0);
 	virtual ~QuickEntryRack();
+	GraphicalRack *tiles() const { return m_tiles; }
 
 public slots:
 	virtual void positionChanged(const Quackle::GamePosition *position);
 	virtual void grabFocus();
-	void returnTile(int letter);
-	void removeTile(int letter);
-
-signals:
-	void rackTileSelected(int letter);
+	void returnTile(int slot);
+	void removeTile(int slot);
+	void restoreTiles();
 
 private slots:
 	void quickEditReturnPressed();
@@ -66,21 +68,25 @@ class GraphicalRack : public QFrame
 
 public:
 	GraphicalRack(QWidget *parent = 0);
+	bool dragTile(int slot, Quackle::Letter &letter) const;
+	void setBoardFrame(GraphicalBoardFrame *board);
 
 public slots:
 	virtual void setText(const Quackle::LetterString &text);
-	void returnTile(int letter);
-	void removeTile(int letter);
-
-signals:
-	void rackTileSelected(int letter);
+	void returnTile(int slot);
+	void removeTile(int slot);
 
 protected:
 	void mousePressEvent(QMouseEvent *event);
+	void mouseMoveEvent(QMouseEvent *event);
+	void mouseReleaseEvent(QMouseEvent *event);
 
 private:
+	void updateTile(QLabel *label, Quackle::Letter letter);
 	QHBoxLayout *m_layout;
-	QLabel *m_selectedLabel = nullptr;
+	QPoint m_pressedPosition;
+	QLabel *m_pressedLabel = nullptr;
+	QPointer<GraphicalBoardFrame> m_boardFrame;
 };
 
 #endif

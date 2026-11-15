@@ -16,11 +16,11 @@
  *  along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
 #include <iostream>
 #include <math.h>
 
 #include <QtGui>
-#include <QInputDialog>
 #include <QVBoxLayout>
 #include <qdrawutil.h>
 
@@ -32,6 +32,7 @@
 #include "geometry.h"
 #include "graphicalboard.h"
 #include "quackersettings.h"
+#include "rackdisplay.h"
 #include "settings.h"
 
 using namespace std;
@@ -71,21 +72,17 @@ void GraphicalBoard::resizeEvent(QResizeEvent * /* event */)
 	QTimer::singleShot(0, this, SLOT(expandToFullWidth()));
 }
 
-void GraphicalBoard::selectRackTile(int letter)
+void GraphicalBoard::setRackSource(GraphicalRack *rack)
 {
-	m_boardFrame->selectRackTile(letter);
+	m_boardFrame->setRackSource(rack);
+	if (rack)
+		rack->setBoardFrame(m_boardFrame);
 }
 
 ///////////////////
 
 GraphicalBoardFrame::GraphicalBoardFrame(QWidget *parent)
-	: View(parent)
-	, m_ignoreRack(false)
-	, m_alwaysShowVerboseLabels(false)
-	, m_nextLetterBlank(false)
-	, m_boardSize(0, 0)
-	, m_selectedRackTile(QUACKLE_NULL_MARK)
-	, m_sideLength(0)
+	: View(parent), m_ignoreRack(false), m_alwaysShowVerboseLabels(false), m_nextLetterBlank(false), m_boardSize(0, 0), m_sideLength(0)
 {
 	setFrameStyle(QFrame::StyledPanel | QFrame::Raised);
 	setLineWidth(2);
@@ -93,6 +90,7 @@ GraphicalBoardFrame::GraphicalBoardFrame(QWidget *parent)
 	setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Maximum);
 	setFocusPolicy(Qt::StrongFocus);
 	setAttribute(Qt::WA_InputMethodEnabled);
+	setAcceptDrops(true);
 
 	QColor color(PixmapCacher::self()->markColor);
 	QPalette customPalette;
@@ -128,6 +126,18 @@ void GraphicalBoardFrame::staticDrawPosition(const Quackle::GamePosition &positi
 
 void GraphicalBoardFrame::positionChanged(const Quackle::GamePosition *position)
 {
+	bool preserveTiles = hasPendingTiles() && matchesPendingCandidate(position->moveMade())
+		&& m_rack.tiles() == position->currentPlayer().rack().tiles() && m_board.width() == position->board().width()
+		&& m_board.height() == position->board().height();
+	for (int row = 0; preserveTiles && row < m_board.height(); ++row)
+		for (int col = 0; preserveTiles && col < m_board.width(); ++col)
+			preserveTiles = m_board.letter(row, col) == position->board().letter(row, col)
+				&& m_board.isBlank(row, col) == position->board().isBlank(row, col);
+	if (!preserveTiles && hasPendingTiles())
+	{
+		m_pendingTiles.clear();
+		emit resetRackTiles();
+	}
 	m_nextLetterBlank = false;
 	m_board = position->board();
 	m_rack = position->currentPlayer().rack();
@@ -137,7 +147,6 @@ void GraphicalBoardFrame::positionChanged(const Quackle::GamePosition *position)
 
 	resetArrow();
 	m_candidate = position->moveMade();
-	m_selectedRackTile = QUACKLE_NULL_MARK;
 
 	prepare();
 }
@@ -145,7 +154,24 @@ void GraphicalBoardFrame::positionChanged(const Quackle::GamePosition *position)
 void GraphicalBoardFrame::prepare()
 {
 	drawBoard(m_board);
-	drawMove(m_candidate);
+	if (m_pendingTiles.isEmpty())
+		drawMove(m_candidate);
+	else
+	{
+		for (auto it = m_pendingTiles.constBegin(); it != m_pendingTiles.constEnd(); ++it)
+		{
+			TileWidget *tile = tileAt(it.key());
+			if (!tile)
+				continue;
+			Quackle::Board::TileInformation info;
+			info.tileType = Quackle::Board::LetterTile;
+			info.isBlank = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(it.value().letter);
+			info.letter = QUACKLE_ALPHABET_PARAMETERS->clearBlankness(it.value().letter);
+			tile->setInformation(info);
+			tile->setCemented(false);
+			tile->prepare();
+		}
+	}
 
 	if (isOnBoard(m_arrowRoot))
 		drawArrow(m_arrowRoot, m_arrowDirection);
@@ -286,6 +312,8 @@ TileWidget *GraphicalBoardFrame::tileAt(const QSize &loc)
 
 QSize GraphicalBoardFrame::locationForPosition(const QPoint &pos)
 {
+	if (m_sideLength <= 0)
+		return QSize(-1, -1);
 	QPoint semiRegularized = (pos - QPoint(frameWidth(), frameWidth()) - m_tilesOffset);
 	QSize finalSize((int)floor((double)semiRegularized.x() / m_sideLength), (int)floor((double)semiRegularized.y() / m_sideLength));
 	return finalSize;
@@ -515,111 +543,95 @@ void GraphicalBoardFrame::paintEvent(QPaintEvent *event)
 	painter.end();
 }
 
-void GraphicalBoardFrame::selectRackTile(int letter)
-{
-	m_selectedRackTile = static_cast<Quackle::Letter>(letter);
-	if (m_selectedRackTile != QUACKLE_NULL_MARK)
-		statusMessage(tr("Click the highlighted square to place the selected tile."));
-}
-
 void GraphicalBoardFrame::mousePressEvent(QMouseEvent *event)
 {
 	setFocus();
 	m_pressedCandidateTile = QSize(-1, -1);
-
 	if (!wantMousePressEvent(event))
 	{
 		event->ignore();
 		return;
 	}
-
-	const QPoint pos(event->pos());
-	const QSize location = locationForPosition(pos);
-	if (location.isValid() && candidateTileIndexAt(location) >= 0)
+	const QSize location = locationForPosition(event->pos());
+	if (m_pendingTiles.contains(location))
 	{
 		m_pressedCandidateTile = location;
-		m_pressedPosition = pos;
-		event->accept();
-		return;
+		m_pressedPosition = event->pos();
 	}
-
-	if (isOnBoard(location) && m_selectedRackTile != QUACKLE_NULL_MARK)
-	{
-		if (!hasArrow())
-		{
-			tileClicked(location, event);
-			if (hasArrow())
-				statusMessage(tr("Direction selected. Click the highlighted square to place the selected tile."));
-			event->accept();
-			return;
-		}
-		if (location != m_arrowRoot)
-		{
-			statusMessage(tr("Click the highlighted square to place the selected tile."));
-			event->accept();
-			return;
-		}
-
-		const Quackle::Letter letter = m_selectedRackTile;
-		QString text;
-		const bool forceBlank = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(letter);
-		if (forceBlank)
-		{
-			QStringList choices;
-			for (int index = 0; index < QUACKLE_ALPHABET_PARAMETERS->length(); ++index)
-			{
-				const Quackle::Letter choice = static_cast<Quackle::Letter>(QUACKLE_FIRST_LETTER + index);
-				choices.append(QuackleIO::Util::uvStringToQString(QUACKLE_ALPHABET_PARAMETERS->userVisible(choice)));
-			}
-			bool accepted = false;
-			text = QInputDialog::getItem(this, tr("Choose a letter for the blank"), tr("Letter:"), choices, 0, false, &accepted);
-			if (!accepted)
-			{
-				event->accept();
-				return;
-			}
-		}
-		else
-			text = QuackleIO::Util::uvStringToQString(QUACKLE_ALPHABET_PARAMETERS->userVisible(letter));
-
-		const int previousTileCount = static_cast<int>(m_candidate.tiles().length());
-		appendHandler(text, forceBlank);
-		if (static_cast<int>(m_candidate.tiles().length()) > previousTileCount)
-		{
-			emit rackTilePlaced(static_cast<int>(letter));
-			m_selectedRackTile = QUACKLE_NULL_MARK;
-		}
-		prepare();
-		event->accept();
-		return;
-	}
-
-	if (location.isValid())
+	else if (isOnBoard(location))
 		tileClicked(location, event);
-
 	event->accept();
 }
 
 void GraphicalBoardFrame::mouseReleaseEvent(QMouseEvent *event)
 {
-	if (event->button() == Qt::LeftButton && m_pressedCandidateTile.isValid())
-	{
-		const QSize location = m_pressedCandidateTile;
-		const int tileIndex = candidateTileIndexAt(location);
-		if ((event->pos() - m_pressedPosition).manhattanLength() < QApplication::startDragDistance() && tileIndex >= 0)
-		{
-			const Quackle::Letter letter = m_candidate.tiles()[tileIndex];
-			if (returnCandidateTile(location.height(), location.width()))
-				emit returnRackTile(static_cast<int>(letter));
-		}
-
-		m_pressedCandidateTile = QSize(-1, -1);
-		event->accept();
-		return;
-	}
-
+	if (event->button() == Qt::LeftButton && m_pressedCandidateTile.isValid() && locationForPosition(event->pos()) == m_pressedCandidateTile
+		&& (event->pos() - m_pressedPosition).manhattanLength() < QApplication::startDragDistance())
+		returnCandidateTile(m_pressedCandidateTile.height(), m_pressedCandidateTile.width());
 	m_pressedCandidateTile = QSize(-1, -1);
 	QFrame::mouseReleaseEvent(event);
+}
+
+void GraphicalBoardFrame::dragEnterEvent(QDragEnterEvent *event)
+{
+	if (event->source() == m_rackSource && m_rackSource && event->mimeData()->hasFormat("application/x-quackle-rack-slot"))
+		event->acceptProposedAction();
+}
+
+void GraphicalBoardFrame::dragMoveEvent(QDragMoveEvent *event)
+{
+	if (event->source() == m_rackSource && m_rackSource && event->mimeData()->hasFormat("application/x-quackle-rack-slot"))
+		event->acceptProposedAction();
+}
+
+void GraphicalBoardFrame::dropEvent(QDropEvent *event)
+{
+	if (!m_rackSource || event->source() != m_rackSource || !event->mimeData()->hasFormat("application/x-quackle-rack-slot"))
+		return;
+	bool validSlot = false;
+	const int slot = event->mimeData()->data("application/x-quackle-rack-slot").toInt(&validSlot);
+	Quackle::Letter letter;
+	if (!validSlot || !m_rackSource->dragTile(slot, letter))
+		return;
+#if QT_VERSION >= QT_VERSION_CHECK(6, 0, 0)
+	const QSize location = locationForPosition(event->position().toPoint());
+#else
+	const QSize location = locationForPosition(event->pos());
+#endif
+	if (placeRackTile(slot, letter, location))
+		event->acceptProposedAction();
+}
+
+bool GraphicalBoardFrame::placeRackTile(int slot, Quackle::Letter letter, const QSize &location)
+{
+	if (!isOnBoard(location) || m_pendingTiles.contains(location)
+		|| m_board.tileInformation(location.height(), location.width()).tileType == Quackle::Board::LetterTile)
+	{
+		emit statusMessage(tr("Drop a tile on an empty board square."));
+		return false;
+	}
+	if (!m_pendingTiles.isEmpty())
+	{
+		const QSize first = m_pendingTiles.constBegin().key();
+		bool sameRow = location.height() == first.height();
+		bool sameColumn = location.width() == first.width();
+		for (auto it = m_pendingTiles.constBegin(); it != m_pendingTiles.constEnd(); ++it)
+		{
+			sameRow = sameRow && it.key().height() == first.height();
+			sameColumn = sameColumn && it.key().width() == first.width();
+		}
+		if (!sameRow && !sameColumn)
+		{
+			emit statusMessage(tr("Tiles must be placed in one row or column."));
+			return false;
+		}
+	}
+	m_pendingTiles.insert(location, PendingTile { slot, letter });
+	resetArrow();
+	emit rackTilePlaced(slot);
+	updateDraggedCandidate();
+	prepare();
+	return true;
 }
 
 void GraphicalBoardFrame::keyPressEvent(QKeyEvent *event)
@@ -762,7 +774,7 @@ bool GraphicalBoardFrame::wantMousePressEvent(const QMouseEvent *event) const
 	return (event->button() == Qt::LeftButton);
 }
 
-Quackle::Move GraphicalBoardFrame::flip(const Quackle::Move &flippee)
+Quackle::Move GraphicalBoardFrame::flip(const Quackle::Move &flippee) const
 {
 	if (!m_board.isConnected(flippee))
 		return flippee;
@@ -1007,80 +1019,7 @@ void GraphicalBoardFrame::appendHandler(const QString &text, bool forceBlank)
 	prettifyAndSetLocalCandidate(newCandidate);
 }
 
-void GraphicalBoardFrame::tileClicked(const QSize &tileLocation, const QMouseEvent * /* event */)
-{
-	m_nextLetterBlank = false;
-	Quackle::Board::TileInformation info(m_board.tileInformation(tileLocation.height(), tileLocation.width()));
-	if (info.tileType == Quackle::Board::LetterTile)
-		return;
-
-	if ((m_candidate.action == Quackle::Move::Place || m_candidate.action == Quackle::Move::PlaceError)
-		&& !m_candidate.wordTilesWithNoPlayThru().empty() && tileLocation == m_arrowRoot)
-	{
-		statusMessage(
-			tr("The current move is preserved. Select another rack tile to continue or click another square to start a new move."));
-		return;
-	}
-
-	if (m_arrowRoot == tileLocation)
-	{
-		++m_arrowDirection;
-		if (m_arrowDirection == ArrowWorm)
-			m_arrowDirection = s_firstArrowDirection;
-	}
-	else
-		m_arrowDirection = s_firstArrowDirection;
-
-	m_arrowRoot = tileLocation;
-
-	Quackle::Move originalMove;
-	Quackle::LetterString hoppedTiles;
-
-	QSize currentTile(tileLocation);
-	while (true)
-	{
-		const QSize previousTile = currentTile - arrowVector();
-
-		bool stopHere;
-
-		if (!isOnBoard(previousTile))
-			stopHere = true;
-		else
-		{
-			Quackle::Board::TileInformation previousTileInformation(m_board.tileInformation(previousTile.height(), previousTile.width()));
-
-			stopHere = previousTileInformation.tileType != Quackle::Board::LetterTile;
-		}
-
-		if (stopHere)
-		{
-			const bool horizontal = m_arrowDirection == ArrowRight;
-			originalMove = Quackle::Move::createPlaceMove(currentTile.height(), currentTile.width(), horizontal, hoppedTiles);
-			break;
-		}
-
-		hoppedTiles += QUACKLE_PLAYED_THRU_MARK;
-		currentTile = previousTile;
-	}
-
-	prettifyAndSetLocalCandidate(originalMove);
-
-	// TODO work some cleverness so we can do this!
-	// emit setCandidateMove(Quackle::Move::createNonmove());
-
-	for (QSize currentTile(0, 0); currentTile.height() < m_boardSize.height(); currentTile.setHeight(currentTile.height() + 1))
-		for (currentTile.setWidth(0); currentTile.width() < m_boardSize.width(); currentTile.setWidth(currentTile.width() + 1))
-			if (currentTile != tileLocation)
-			{
-				TileWidget *tile = tileAt(currentTile);
-				if (!tile)
-					continue;
-
-				tile->setArrowDirection(NoArrow);
-			}
-
-	prepare();
-}
+void GraphicalBoardFrame::tileClicked(const QSize & /* tileLocation */, const QMouseEvent * /* event */) {}
 
 void GraphicalBoardFrame::resetArrow()
 {
@@ -1104,6 +1043,16 @@ bool GraphicalBoardFrame::hasCandidate() const
 	return m_candidate.isAMove();
 }
 
+bool GraphicalBoardFrame::matchesPendingCandidate(const Quackle::Move &move) const
+{
+	if (!hasPendingTiles() || m_candidate.action != Quackle::Move::Place || move.action != Quackle::Move::Place)
+		return false;
+	const Quackle::Move candidate = m_candidate.wordTilesWithNoPlayThru().length() == 1 ? flip(m_candidate) : m_candidate;
+	return candidate.startrow == move.startrow && candidate.startcol == move.startcol && candidate.horizontal == move.horizontal
+		&& candidate.tiles().length() == move.tiles().length()
+		&& m_board.sanitizedTilesOfMove(candidate) == m_board.sanitizedTilesOfMove(move);
+}
+
 void GraphicalBoardFrame::ensureCandidatePlacedProperly()
 {
 	if (m_candidate.tiles().empty())
@@ -1113,67 +1062,79 @@ void GraphicalBoardFrame::ensureCandidatePlacedProperly()
 	}
 }
 
-int GraphicalBoardFrame::candidateTileIndexAt(const QSize &location) const
+void GraphicalBoardFrame::updateDraggedCandidate()
 {
-	if (m_candidate.action != Quackle::Move::Place && m_candidate.action != Quackle::Move::PlaceError)
-		return -1;
-
-	for (int index = 0; index < static_cast<int>(m_candidate.tiles().length()); ++index)
+	if (m_pendingTiles.isEmpty())
 	{
-		if (Quackle::Move::isAlreadyOnBoard(m_candidate.tiles()[index]))
-			continue;
-
-		const int row = m_candidate.horizontal ? m_candidate.startrow : m_candidate.startrow + index;
-		const int column = m_candidate.horizontal ? m_candidate.startcol + index : m_candidate.startcol;
-		if (row == location.height() && column == location.width())
-			return index;
+		m_candidate = Quackle::Move::createNonmove();
+		emit localCandidateChanged(&m_candidate);
+		return;
 	}
 
-	return -1;
+	const QSize first = m_pendingTiles.constBegin().key();
+	bool horizontal = true;
+	int minRow = first.height(), maxRow = first.height();
+	int minColumn = first.width(), maxColumn = first.width();
+	for (auto it = m_pendingTiles.constBegin(); it != m_pendingTiles.constEnd(); ++it)
+	{
+		minRow = std::min(minRow, it.key().height());
+		maxRow = std::max(maxRow, it.key().height());
+		minColumn = std::min(minColumn, it.key().width());
+		maxColumn = std::max(maxColumn, it.key().width());
+	}
+	if (minRow != maxRow)
+		horizontal = false;
+	Quackle::LetterString letters;
+	int firstOffset = horizontal ? minColumn : minRow;
+	int lastOffset = horizontal ? maxColumn : maxRow;
+	const int limit = horizontal ? m_boardSize.width() : m_boardSize.height();
+	while (firstOffset > 0)
+	{
+		const int row = horizontal ? minRow : firstOffset - 1;
+		const int column = horizontal ? firstOffset - 1 : minColumn;
+		if (m_board.tileInformation(row, column).tileType != Quackle::Board::LetterTile)
+			break;
+		--firstOffset;
+	}
+	while (lastOffset + 1 < limit)
+	{
+		const int row = horizontal ? minRow : lastOffset + 1;
+		const int column = horizontal ? lastOffset + 1 : minColumn;
+		if (m_board.tileInformation(row, column).tileType != Quackle::Board::LetterTile)
+			break;
+		++lastOffset;
+	}
+	for (int offset = firstOffset; offset <= lastOffset; ++offset)
+	{
+		const QSize location(horizontal ? offset : minColumn, horizontal ? minRow : offset);
+		if (m_pendingTiles.contains(location))
+			letters += m_pendingTiles.value(location).letter;
+		else if (m_board.tileInformation(location.height(), location.width()).tileType == Quackle::Board::LetterTile)
+			letters += QUACKLE_PLAYED_THRU_MARK;
+		else
+		{
+			m_candidate = Quackle::Move::createNonmove();
+			emit localCandidateChanged(&m_candidate);
+			emit statusMessage(tr("Fill the gap before committing the move."));
+			return;
+		}
+	}
+	prettifyAndSetLocalCandidate(
+		Quackle::Move::createPlaceMove(horizontal ? minRow : firstOffset, horizontal ? firstOffset : minColumn, horizontal, letters));
 }
 
 bool GraphicalBoardFrame::returnCandidateTile(int row, int column)
 {
 	const QSize location(column, row);
-	const int tileIndex = candidateTileIndexAt(location);
-	if (tileIndex < 0)
+	auto it = m_pendingTiles.find(location);
+	if (it == m_pendingTiles.end())
 		return false;
-
-	Quackle::LetterString remainingTiles(m_candidate.tiles());
-	remainingTiles.erase(remainingTiles.begin() + tileIndex);
-	bool hasPlacedTile = false;
-	for (const Quackle::Letter letter : remainingTiles)
-		if (!Quackle::Move::isAlreadyOnBoard(letter))
-			hasPlacedTile = true;
-
-	if (!hasPlacedTile)
-	{
-		m_candidate = Quackle::Move::createNonmove();
-		resetArrow();
-		localCandidateChanged(&m_candidate);
-		prepare();
-		return true;
-	}
-
-	for (int index = 0; index < static_cast<int>(remainingTiles.length()); ++index)
-	{
-		const int tileRow = m_candidate.horizontal ? m_candidate.startrow : m_candidate.startrow + index;
-		const int tileColumn = m_candidate.horizontal ? m_candidate.startcol + index : m_candidate.startcol;
-		const QSize tileLocation(tileColumn, tileRow);
-		if (!isOnBoard(tileLocation))
-			return false;
-
-		const bool occupied = m_board.tileInformation(tileRow, tileColumn).tileType == Quackle::Board::LetterTile;
-		if (occupied != Quackle::Move::isAlreadyOnBoard(remainingTiles[index]))
-		{
-			statusMessage(tr("This tile cannot be returned because the remaining move would have a gap."));
-			return false;
-		}
-	}
-
-	Quackle::Move updatedMove
-		= Quackle::Move::createPlaceMove(m_candidate.startrow, m_candidate.startcol, m_candidate.horizontal, remainingTiles);
-	prettifyAndSetLocalCandidate(updatedMove);
+	const int slot = it.value().rackSlot;
+	m_pendingTiles.erase(it);
+	emit returnRackTile(slot);
+	updateDraggedCandidate();
+	if (m_pendingTiles.isEmpty())
+		emit setCandidateMove(&m_candidate, nullptr);
 	prepare();
 	return true;
 }

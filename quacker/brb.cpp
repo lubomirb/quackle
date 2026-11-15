@@ -24,6 +24,7 @@
 #include "brb.h"
 #include "boarddisplay.h"
 #include "geometry.h"
+#include "graphicalboard.h"
 #include "rackdisplay.h"
 #include "widgetfactory.h"
 
@@ -56,11 +57,13 @@ BRB::BRB(WidgetFactory *widgetFactory, QWidget *parent)
 	m_subviews.push_back(m_rackDisplay);
 	m_subviews.push_back(m_bagDisplay);
 	connectSubviewSignals();
-	if (qobject_cast<QuickEntryRack *>(m_rackDisplay))
+	if (QuickEntryRack *rack = qobject_cast<QuickEntryRack *>(m_rackDisplay))
 	{
-		connect(m_rackDisplay, SIGNAL(rackTileSelected(int)), m_boardDisplay, SLOT(selectRackTile(int)));
+		if (GraphicalBoard *board = qobject_cast<GraphicalBoard *>(m_boardDisplay))
+			board->setRackSource(rack->tiles());
 		connect(m_boardDisplay, SIGNAL(returnRackTile(int)), m_rackDisplay, SLOT(returnTile(int)));
 		connect(m_boardDisplay, SIGNAL(rackTilePlaced(int)), m_rackDisplay, SLOT(removeTile(int)));
+		connect(m_boardDisplay, SIGNAL(resetRackTiles()), m_rackDisplay, SLOT(restoreTiles()));
 	}
 }
 

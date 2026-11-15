@@ -35,6 +35,7 @@ class QGridLayout;
 class QInputMethodEvent;
 
 class GraphicalBoardFrame;
+class GraphicalRack;
 class MarkWidget;
 class TileWidget;
 
@@ -104,9 +105,7 @@ public:
 	~GraphicalBoard();
 
 	GraphicalBoardFrame *boardFrame() { return m_boardFrame; }
-
-public slots:
-	void selectRackTile(int letter);
+	void setRackSource(GraphicalRack *rack);
 
 protected slots:
 	virtual void expandToFullWidth();
@@ -126,6 +125,10 @@ public:
 	~GraphicalBoardFrame();
 
 	bool returnCandidateTile(int row, int column);
+	void setRackSource(GraphicalRack *rack) { m_rackSource = rack; }
+	int tileSideLength() const { return m_sideLength; }
+	bool hasPendingTiles() const { return !m_pendingTiles.isEmpty(); }
+	bool matchesPendingCandidate(const Quackle::Move &move) const;
 
 	static const double s_markOtherLengthMultiplier;
 	static const int s_highlightFactor = 125;
@@ -141,7 +144,6 @@ public:
 public slots:
 	virtual void positionChanged(const Quackle::GamePosition *position);
 	virtual void expandToSize(const QSize &maxSize);
-	void selectRackTile(int letter);
 
 protected slots:
 	void backspaceHandler();
@@ -168,6 +170,9 @@ protected:
 	virtual void paintEvent(QPaintEvent *event);
 	virtual void mousePressEvent(QMouseEvent *event);
 	virtual void mouseReleaseEvent(QMouseEvent *event);
+	virtual void dragEnterEvent(QDragEnterEvent *event);
+	virtual void dragMoveEvent(QDragMoveEvent *event);
+	virtual void dropEvent(QDropEvent *event);
 
 	virtual bool wantMousePressEvent(const QMouseEvent *event) const;
 
@@ -199,7 +204,7 @@ protected:
 	TileWidget *markAt(const QSize &loc);
 	QPoint coordinatesOfMark(const QSize &loc);
 
-	Quackle::Move flip(const Quackle::Move &flippee);
+	Quackle::Move flip(const Quackle::Move &flippee) const;
 	void prettifyAndSetLocalCandidate(const Quackle::Move &candidate);
 
 	bool m_alwaysShowVerboseLabels;
@@ -227,12 +232,19 @@ private:
 	QSize arrowVector() const;
 	bool hasCandidate() const;
 	void ensureCandidatePlacedProperly();
-	int candidateTileIndexAt(const QSize &location) const;
+	bool placeRackTile(int slot, Quackle::Letter letter, const QSize &location);
+	void updateDraggedCandidate();
 
+	struct PendingTile
+	{
+		int rackSlot;
+		Quackle::Letter letter;
+	};
+	QMap<QSize, PendingTile> m_pendingTiles;
+	GraphicalRack *m_rackSource = nullptr;
 	bool isOnBoard(const QSize &location) const;
 
 	QSize m_maxSize;
-	Quackle::Letter m_selectedRackTile;
 
 	// side length of one tile
 	int m_sideLength;

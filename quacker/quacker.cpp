@@ -37,6 +37,7 @@
 #include "customqsettings.h"
 #include "dashboard.h"
 #include "geometry.h"
+#include "graphicalboard.h"
 #include "graphicalreporter.h"
 #include "history.h"
 #include "lister.h"
@@ -199,6 +200,18 @@ void TopLevel::commit()
 {
 	if (!m_game->hasPositions())
 		return;
+
+	if (BRB *brb = qobject_cast<BRB *>(m_brb))
+	{
+		if (GraphicalBoard *board = qobject_cast<GraphicalBoard *>(brb->getBoardView()))
+		{
+			if (board->boardFrame()->hasPendingTiles() && !board->boardFrame()->matchesPendingCandidate(m_game->candidate()))
+			{
+				statusMessage(tr("Use the board's Commit button to submit the tiles on the board first."));
+				return;
+			}
+		}
+	}
 
 	if (!isCommitAllowed())
 	{
@@ -2242,19 +2255,20 @@ void TopLevel::firstTimeRun()
 
 void TopLevel::about()
 {
-	QString aboutText
-		= tr("<p><b>Quackle</b> 1.1.0.0 is a crossword game playing, analysis, and study tool. Visit the Quackle homepage at <a "
-			 "href=\"https://quackle.org\">https://quackle.org</a> for more information.</p>"
-			 "<p>Quackle was written by Jason Katz-Brown, John O'Laughlin, John Fultz, Matt Liberty, and Anand Buddhdev. We thank the "
-			 "anonymous donor who made this software free.</p>"
-			 "<p>Copyright 2005-2026 by</p>"
-			 "<ul>"
-			 "<li>Jason Katz-Brown &lt;jasonkatzbrown@gmail.com&gt;</li>"
-			 "<li>John O'Laughlin &lt;olaughlin@gmail.com&gt;</li>"
-			 "<li>John Fultz &lt;jfultz@wolfram.com&gt;</li>"
-			 "</ul>"
-			 "<p>Quackle is free, open-source software licensed under the terms of the GNU General Public License Version 3. See</p>"
-			 "<p><a href=\"https://github.com/quackle/quackle/blob/master/LICENSE\">https://github.com/quackle/quackle/blob/master/LICENSE</a></p>");
+	QString aboutText = tr(
+		"<p><b>Quackle</b> 1.1.0.0 is a crossword game playing, analysis, and study tool. Visit the Quackle homepage at <a "
+		"href=\"https://quackle.org\">https://quackle.org</a> for more information.</p>"
+		"<p>Quackle was written by Jason Katz-Brown, John O'Laughlin, John Fultz, Matt Liberty, and Anand Buddhdev. We thank the "
+		"anonymous donor who made this software free.</p>"
+		"<p>Copyright 2005-2026 by</p>"
+		"<ul>"
+		"<li>Jason Katz-Brown &lt;jasonkatzbrown@gmail.com&gt;</li>"
+		"<li>John O'Laughlin &lt;olaughlin@gmail.com&gt;</li>"
+		"<li>John Fultz &lt;jfultz@wolfram.com&gt;</li>"
+		"</ul>"
+		"<p>Quackle is free, open-source software licensed under the terms of the GNU General Public License Version 3. See</p>"
+		"<p><a "
+		"href=\"https://github.com/quackle/quackle/blob/master/LICENSE\">https://github.com/quackle/quackle/blob/master/LICENSE</a></p>");
 
 	QString creditsText;
 
@@ -2321,22 +2335,23 @@ void TopLevel::about()
 
 void TopLevel::hints()
 {
-	QString hintsText = tr("<ul>"
-						   "<li>Press Shift-Enter after typing your word on the board to enter and commit your move quickly.</li>"
-						   "<li>Double-click at any time during a game on any item in the History table to analyze that position. If you then "
-						   "commit a play, you will restart the game from that point and future plays will be lost.</li>"
-						   "<li>To analyze a real-life game, start a two-player game with two \"Human With Unknown Rack\" players. For one "
-						   "player, for each turn set the rack to the rack you had in the game and then analyze the position and commit the "
-						   "play that you made in real life. For the other player, commit your oppo's real-life plays.</li>"
-						   "<li>Stop simulations by unchecking \"Simulate\" in the Move menu. Sims can be stopped and restarted without losing "
-						   "their state, and sims of different plies can be combined. Check out the sim details during a simulation by choosing "
-						   "\"Show simulation details\" from the Move menu!</li>"
-						   "</ul>"
-						   "<p>Have fun using Quackle. We'd love your help developing it, especially if you can code, but we like suggestions "
-						   "too! You can contribute to Quackle development at:</p>"
-						   "<p><a href=\"https://github.com/quackle/quackle\">https://github.com/quackle/quackle</a></p>"
-						   "<p>You can report bugs and feature requests at:</p>"
-						   "<p><a href=\"https://github.com/quackle/quackle/issues/new\">https://github.com/quackle/quackle/issues/new</a></p>");
+	QString hintsText
+		= tr("<ul>"
+			 "<li>Drag tiles from the rack to the board, then press Control-Enter to commit your move.</li>"
+			 "<li>Double-click at any time during a game on any item in the History table to analyze that position. If you then "
+			 "commit a play, you will restart the game from that point and future plays will be lost.</li>"
+			 "<li>To analyze a real-life game, start a two-player game with two \"Human With Unknown Rack\" players. For one "
+			 "player, for each turn set the rack to the rack you had in the game and then analyze the position and commit the "
+			 "play that you made in real life. For the other player, commit your oppo's real-life plays.</li>"
+			 "<li>Stop simulations by unchecking \"Simulate\" in the Move menu. Sims can be stopped and restarted without losing "
+			 "their state, and sims of different plies can be combined. Check out the sim details during a simulation by choosing "
+			 "\"Show simulation details\" from the Move menu!</li>"
+			 "</ul>"
+			 "<p>Have fun using Quackle. We'd love your help developing it, especially if you can code, but we like suggestions "
+			 "too! You can contribute to Quackle development at:</p>"
+			 "<p><a href=\"https://github.com/quackle/quackle\">https://github.com/quackle/quackle</a></p>"
+			 "<p>You can report bugs and feature requests at:</p>"
+			 "<p><a href=\"https://github.com/quackle/quackle/issues/new\">https://github.com/quackle/quackle/issues/new</a></p>");
 
 	QDialog dialog(this);
 	dialog.setWindowTitle(tr("Helpful Hints - Quackle"));
@@ -2520,7 +2535,7 @@ void KibitzerListener::reportTriggered()
 	if (slownessCheck())
 		emit reportAs(m_computerPlayer);
 
-    QMessageBox::information(nullptr, QString("Report Finished"), QString("Your full-game report has been successfully created."));
+	QMessageBox::information(nullptr, QString("Report Finished"), QString("Your full-game report has been successfully created."));
 }
 
 bool KibitzerListener::slownessCheck()

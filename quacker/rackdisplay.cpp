@@ -57,7 +57,6 @@ QuickEntryRack::QuickEntryRack(QWidget *parent)
 	layout->addWidget(m_tiles);
 	layout->addLayout(textLayout);
 	setLayout(layout);
-	connect(m_tiles, SIGNAL(rackTileSelected(int)), this, SIGNAL(rackTileSelected(int)));
 }
 
 QuickEntryRack::~QuickEntryRack() {}
@@ -66,7 +65,6 @@ void QuickEntryRack::positionChanged(const Quackle::GamePosition *position)
 {
 	if (m_rackTiles == position->currentPlayer().rack().tiles())
 		return;
-
 	m_rackTiles = position->currentPlayer().rack().tiles();
 	QString tiles = QuackleIO::Util::letterStringToQString(m_rackTiles);
 	m_lineEdit->setText(tiles);
@@ -87,6 +85,11 @@ void QuickEntryRack::returnTile(int letter)
 void QuickEntryRack::removeTile(int letter)
 {
 	m_tiles->removeTile(letter);
+}
+
+void QuickEntryRack::restoreTiles()
+{
+	m_tiles->setText(m_rackTiles);
 }
 
 void QuickEntryRack::quickEditReturnPressed()
@@ -125,101 +128,160 @@ GraphicalRack::GraphicalRack(QWidget *parent)
 	setMinimumSize(50, 50);
 }
 
+void GraphicalRack::setBoardFrame(GraphicalBoardFrame *board)
+{
+	m_boardFrame = board;
+}
+
 void GraphicalRack::setText(const Quackle::LetterString &text)
 {
-	// clear old labels
-	m_selectedLabel = nullptr;
+	m_pressedLabel = nullptr;
 	while (m_layout->count())
 	{
 		QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(0)->widget());
 		if (!label)
-		{
 			break;
-		}
 		m_layout->removeWidget(label);
 		label->close();
 	}
 
 	PixmapCacher::self()->invalidate();
-	for (int i = text.size() - 1; i >= 0; --i)
+	for (int i = 0; i < static_cast<int>(text.size()); ++i)
 	{
 		QLabel *label = new QLabel;
 		label->setAttribute(Qt::WA_DeleteOnClose);
-
-		TileWidget tile;
-		Quackle::Board::TileInformation info;
-		info.isOnRack = true;
-		info.letter = text[i];
-		info.tileType = Quackle::Board::LetterTile;
-		tile.setDevicePixelRatio(devicePixelRatio());
-		tile.setInformation(info);
-		tile.setSideLength(50);
-		tile.prepare();
-
-		label->setPixmap(tile.tilePixmap());
-		label->setProperty("quackleLetter", static_cast<int>(text[i]));
-
-		m_layout->insertWidget(0, label);
+		label->setFixedSize(50, 50);
+		label->setProperty("quackleSlot", i);
+		label->setProperty("quackleOccupied", true);
+		updateTile(label, text[i]);
+		m_layout->insertWidget(i, label);
 	}
 }
 
-void GraphicalRack::returnTile(int letterValue)
+void GraphicalRack::updateTile(QLabel *label, Quackle::Letter letter)
 {
-	const Quackle::Letter letter = static_cast<Quackle::Letter>(letterValue);
 	Quackle::Board::TileInformation info;
 	info.isOnRack = true;
 	info.tileType = Quackle::Board::LetterTile;
-	info.letter = QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(letter) ? QUACKLE_BLANK_MARK : letter;
-
+	info.isBlank = letter != QUACKLE_BLANK_MARK && QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(letter);
+	info.letter = letter;
 	TileWidget tile;
 	tile.setDevicePixelRatio(devicePixelRatio());
 	tile.setInformation(info);
 	tile.setSideLength(50);
 	tile.prepare();
-
-	QLabel *label = new QLabel;
 	label->setPixmap(tile.tilePixmap());
-	label->setProperty("quackleLetter", letterValue);
-	label->setAttribute(Qt::WA_DeleteOnClose);
-	m_layout->insertWidget(m_layout->count() - 1, label);
+	label->setProperty("quackleLetter", static_cast<int>(letter));
 }
 
-void GraphicalRack::removeTile(int letterValue)
+bool GraphicalRack::dragTile(int slot, Quackle::Letter &letter) const
 {
-	for (int index = 0; index < m_layout->count(); ++index)
+	if (slot < 0 || slot >= m_layout->count())
+		return false;
+	QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(slot)->widget());
+	if (!label || !label->property("quackleOccupied").toBool())
+		return false;
+	letter = static_cast<Quackle::Letter>(label->property("quackleLetter").toInt());
+	return letter != QUACKLE_BLANK_MARK;
+}
+
+void GraphicalRack::returnTile(int slot)
+{
+	if (slot < 0 || slot >= m_layout->count())
+		return;
+	QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(slot)->widget());
+	if (label)
 	{
-		QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(index)->widget());
-		if (label && label->property("quackleLetter").toInt() == letterValue)
-		{
-			if (m_selectedLabel == label)
-				m_selectedLabel = nullptr;
-			m_layout->removeWidget(label);
-			label->close();
-			return;
-		}
+		label->setProperty("quackleOccupied", true);
+		updateTile(label, static_cast<Quackle::Letter>(label->property("quackleLetter").toInt()));
+	}
+}
+
+void GraphicalRack::removeTile(int slot)
+{
+	if (slot < 0 || slot >= m_layout->count())
+		return;
+	QLabel *label = qobject_cast<QLabel *>(m_layout->itemAt(slot)->widget());
+	if (label)
+	{
+		label->setProperty("quackleOccupied", false);
+		label->clear();
 	}
 }
 
 void GraphicalRack::mousePressEvent(QMouseEvent *event)
 {
-	if (event->button() != Qt::LeftButton)
+	m_pressedLabel = nullptr;
+	if (event->button() == Qt::LeftButton)
 	{
-		event->ignore();
+		QLabel *label = qobject_cast<QLabel *>(childAt(event->pos()));
+		if (label && label->property("quackleOccupied").toBool())
+		{
+			m_pressedLabel = label;
+			m_pressedPosition = event->pos();
+			event->accept();
+			return;
+		}
+	}
+	event->ignore();
+}
+
+void GraphicalRack::mouseMoveEvent(QMouseEvent *event)
+{
+	if (!m_pressedLabel || !(event->buttons() & Qt::LeftButton)
+		|| (event->pos() - m_pressedPosition).manhattanLength() < QApplication::startDragDistance())
+		return;
+
+	QLabel *label = m_pressedLabel;
+	m_pressedLabel = nullptr;
+	Quackle::Letter letter;
+	const int slot = label->property("quackleSlot").toInt();
+	if (!dragTile(slot, letter))
+	{
+		QMessageBox::information(this, tr("Blank tile"), tr("Click the blank and enter a lowercase letter before dragging it."));
 		return;
 	}
-
-	QLabel *label = qobject_cast<QLabel *>(childAt(event->pos()));
-	if (!label)
+	if (!m_boardFrame || m_boardFrame->tileSideLength() <= 0)
 	{
-		event->ignore();
+		QMessageBox::information(this, tr("Board not ready"), tr("The board is not ready for tile placement."));
 		return;
 	}
+	const int side = m_boardFrame->tileSideLength();
+	const QPixmap source = label->grab();
+	const qreal ratio = source.devicePixelRatio();
+	QPixmap preview = source.scaled(qRound(side * ratio), qRound(side * ratio), Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+	preview.setDevicePixelRatio(ratio);
+	QMimeData *mime = new QMimeData;
+	mime->setData("application/x-quackle-rack-slot", QByteArray::number(slot));
+	QDrag *drag = new QDrag(this);
+	drag->setMimeData(mime);
+	drag->setPixmap(preview);
+	drag->setHotSpot(QPoint(side / 2, side / 2));
+	drag->exec(Qt::MoveAction);
+}
 
-	if (m_selectedLabel)
-		m_selectedLabel->setFrameStyle(QFrame::NoFrame);
-	m_selectedLabel = label;
-	m_selectedLabel->setFrameStyle(QFrame::Box | QFrame::Plain);
-	m_selectedLabel->setLineWidth(2);
-	emit rackTileSelected(label->property("quackleLetter").toInt());
-	event->accept();
+void GraphicalRack::mouseReleaseEvent(QMouseEvent *event)
+{
+	QLabel *label = m_pressedLabel;
+	m_pressedLabel = nullptr;
+	if (event->button() != Qt::LeftButton || !label || childAt(event->pos()) != label)
+		return;
+	const Quackle::Letter current = static_cast<Quackle::Letter>(label->property("quackleLetter").toInt());
+	if (current != QUACKLE_BLANK_MARK && !QUACKLE_ALPHABET_PARAMETERS->isBlankLetter(current))
+		return;
+
+	bool accepted = false;
+	const QString text
+		= QInputDialog::getText(this, tr("Blank tile"), tr("Enter a lowercase letter:"), QLineEdit::Normal, QString(), &accepted)
+			  .normalized(QString::NormalizationForm_C);
+	if (!accepted)
+		return;
+	const Quackle::LetterString letters = QuackleIO::Util::encode(text);
+	if (text.isEmpty() || text != text.toLower() || letters.length() != 1 || letters[0] < QUACKLE_FIRST_LETTER
+		|| QuackleIO::Util::letterToQString(QUACKLE_ALPHABET_PARAMETERS->clearBlankness(letters[0])).toLower() != text)
+	{
+		QMessageBox::warning(this, tr("Blank tile"), tr("Enter one lowercase letter from the selected alphabet."));
+		return;
+	}
+	updateTile(label, QUACKLE_ALPHABET_PARAMETERS->setBlankness(QUACKLE_ALPHABET_PARAMETERS->clearBlankness(letters[0])));
 }

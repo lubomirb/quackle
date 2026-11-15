@@ -5,9 +5,10 @@ Vznikla z open source verzie https://github.com/quackle/quackle lokalizovaním d
 
 
 Všetky ostatné vlastnosti Quackle sú zachované, vrátane možnosti hrať proti počítaču a analyzovať hry .
-Pribudla možnost presúvat kamene zo zásobníka na hraciu dosku a späť myšou:
-	klikom, dvjklikom ma políčko hracej dosky označíme začiatok a smer pre vkladané slovo
-	kliknutím označíme kameň v zásobníku a kliknutím na hraciu dosku sa presunie na hraciu dosku, 
-	kliknutím na kameň ešte nekomitnutého slova na hracej doske sa kameň presunie späť do zásobníka.
+Kamene zo zásobníka presuňte myšou na hraciu dosku do jedného riadka alebo stĺpca.
+Kameň sa uloží na políčko pod ukazovateľom myši, ktorý je v strede ťahaného kameňa.
+Kliknutím na kameň ešte nepotvrdeného ťahu sa kameň vráti na pôvodné miesto v zásobníku.
+Ak medzi kameňmi vznikne prázdne políčko, pred potvrdením ťahu ho treba vyplniť.
 
-Joker sa zadáva z klávesnice kombinácioiu dvoch ? a malé pismeno (napr. "?a" pre "A") .
+Kliknite na Jokera (?) v zásobníku a zadajte jeho hodnotu malým písmenom, napríklad "a".
+Potom ho môžete presunúť na hraciu dosku.

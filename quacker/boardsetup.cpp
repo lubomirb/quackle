@@ -70,6 +70,7 @@ BoardSetupFrame::BoardSetupFrame(QWidget *parent)
 	: GraphicalBoardFrame(parent)
 {
 	m_alwaysShowVerboseLabels = true;
+	setAcceptDrops(false);
 }
 
 BoardSetupFrame::~BoardSetupFrame() {}
